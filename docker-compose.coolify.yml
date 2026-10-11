@@ -1,0 +1,181 @@
+services:
+  api:
+    restart: unless-stopped
+    logging: &id001
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    security_opt: &id002
+    - no-new-privileges:true
+    networks: &id003
+    - backend
+    build:
+      context: apps/api
+    image: lobby-firecrawl-api:v2.11.0
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3002'
+      ENV: local
+      USE_DB_AUTHENTICATION: 'false'
+      ALLOW_LOCAL_WEBHOOKS: 'false'
+      REDIS_URL: redis://redis:6379
+      REDIS_RATE_LIMIT_URL: redis://redis:6379
+      PLAYWRIGHT_MICROSERVICE_URL: http://playwright-service:3000/scrape
+      POSTGRES_USER: firecrawl
+      POSTGRES_DB: firecrawl
+      POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD:?required}
+      POSTGRES_HOST: nuq-postgres
+      POSTGRES_PORT: '5432'
+      NUQ_RABBITMQ_URL: amqp://rabbitmq:5672
+      NUM_WORKERS_PER_QUEUE: '1'
+      CRAWL_CONCURRENT_REQUESTS: '1'
+      MAX_CONCURRENT_JOBS: '1'
+      BROWSER_POOL_SIZE: '1'
+      BULL_AUTH_KEY: ${FIRECRAWL_BULL_AUTH_KEY:?required}
+      HARNESS_STARTUP_TIMEOUT_MS: '120000'
+      LOGGING_LEVEL: warn
+      NODE_OPTIONS: --max-old-space-size=768
+    command: node dist/src/harness.js --start-docker
+    cpus: 1.5
+    mem_limit: 3g
+    memswap_limit: 3g
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nuq-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:3002/
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+  playwright-service:
+    restart: unless-stopped
+    logging: *id001
+    security_opt: *id002
+    networks: *id003
+    build:
+      context: apps/playwright-service-ts
+    image: lobby-firecrawl-browser:v2.11.0
+    environment:
+      PORT: '3000'
+      ALLOW_LOCAL_WEBHOOKS: 'false'
+      BLOCK_MEDIA: 'true'
+      MAX_CONCURRENT_PAGES: '1'
+    cpus: 1
+    mem_limit: 1g
+    memswap_limit: 1g
+    shm_size: 256m
+  redis:
+    restart: unless-stopped
+    logging: *id001
+    security_opt: *id002
+    networks: *id003
+    image: redis:7.4.2-alpine
+    command: redis-server --appendonly yes --maxmemory 192mb --maxmemory-policy noeviction
+    volumes:
+    - redis-data:/data
+    cpus: 0.25
+    mem_limit: 256m
+    memswap_limit: 256m
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  rabbitmq:
+    restart: unless-stopped
+    logging: *id001
+    security_opt: *id002
+    networks: *id003
+    image: rabbitmq:3.13.7-alpine
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: +S 1:1
+    volumes:
+    - rabbit-data:/var/lib/rabbitmq
+    cpus: 0.5
+    mem_limit: 512m
+    memswap_limit: 512m
+    healthcheck:
+      test:
+      - CMD
+      - rabbitmq-diagnostics
+      - -q
+      - check_running
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  nuq-postgres:
+    restart: unless-stopped
+    logging: *id001
+    security_opt: *id002
+    networks: *id003
+    build:
+      context: apps/nuq-postgres
+    image: lobby-firecrawl-nuq:v2.11.0
+    environment:
+      POSTGRES_USER: firecrawl
+      POSTGRES_DB: firecrawl
+      POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD:?required}
+    volumes:
+    - postgres-data:/var/lib/postgresql/data
+    cpus: 0.5
+    mem_limit: 512m
+    memswap_limit: 512m
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U firecrawl -d firecrawl
+      interval: 10s
+      timeout: 3s
+      retries: 10
+  gateway:
+    restart: unless-stopped
+    logging: *id001
+    security_opt: *id002
+    networks:
+      backend: {}
+      integration:
+        aliases:
+        - lobby-firecrawl-private
+    build:
+      context: deploy
+    image: lobby-firecrawl-gateway:v2.11.0
+    environment:
+      FIRECRAWL_GATEWAY_TOKEN: ${FIRECRAWL_GATEWAY_TOKEN:?required}
+    cpus: 0.25
+    mem_limit: 128m
+    memswap_limit: 128m
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080/health')
+      interval: 15s
+      timeout: 5s
+      retries: 5
+networks:
+  backend:
+    driver: bridge
+  integration:
+    external: true
+    name: lobby-firecrawl-integration
+volumes:
+  redis-data: {}
+  rabbit-data: {}
+  postgres-data: {}

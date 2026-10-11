@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: apps/api
+    image: lobby-firecrawl-api:v2.11.0
+  playwright-service:
+    build:
+      context: apps/playwright-service-ts
+    image: lobby-firecrawl-browser:v2.11.0
+  nuq-postgres:
+    build:
+      context: apps/nuq-postgres
+    image: lobby-firecrawl-nuq:v2.11.0
+  gateway:
+    build:
+      context: deploy
+    image: lobby-firecrawl-gateway:v2.11.0
