@@ -18,7 +18,8 @@ Upstream Firecrawl/Mendable copyright, README, LICENSE and source remain intact.
 - Gateway permits only POST /v1/crawl and GET /v1/crawl/<uuid>; excludes extraction, search, batch, webhook and admin routes.
 - Rejects nonpublic DNS results, non-HTTP URLs, credentials and nonstandard ports. Upstream ALLOW_LOCAL_WEBHOOKS=false preserves socket-address checks for fetch and per-request/redirect checks for Playwright.
 - No paid AI keys, commercial proxies, signup or cloud scraping engines.
-- One browser page, one concurrent job, one queue worker; at most 25 pages (full imports are clamped from LobbyStack 50), depth 2, 30-second per-page timeout. LobbyStack default crawl polling deadline remains 5 minutes.
+- One browser page and one actual `NUQ_WORKER_COUNT=1` scraper worker; the legacy concurrency variables in upstream Compose are not relied on. At most 25 pages (full imports are clamped from LobbyStack 50), depth 2, 30-second per-page timeout. LobbyStack default crawl polling deadline remains 5 minutes.
+- NuQ uses the `postgres` database required by the image's `cron.database_name`; readiness verifies its queue schema, not only a listening socket. WAL command overrides cap max/min at 1 GiB/128 MiB instead of upstream cloud-scale defaults. A fresh disposable database was exercised and removed.
 - Memory caps: API 3 GiB, browser 1 GiB, PostgreSQL 512 MiB, RabbitMQ 512 MiB, Redis 256 MiB, gateway 128 MiB; no extra swap permitted. Redis noeviction and AOF, named PostgreSQL/RabbitMQ volumes, rotated logs and unless-stopped policies.
 - Existing tenant authorization and bounded onboarding page limits stay unchanged. No claims that embeddings are configured.
 
