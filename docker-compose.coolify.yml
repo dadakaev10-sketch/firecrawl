@@ -23,7 +23,7 @@ services:
       REDIS_RATE_LIMIT_URL: redis://redis:6379
       PLAYWRIGHT_MICROSERVICE_URL: http://playwright-service:3000/scrape
       POSTGRES_USER: firecrawl
-      POSTGRES_DB: firecrawl
+      POSTGRES_DB: postgres
       POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD:?required}
       POSTGRES_HOST: nuq-postgres
       POSTGRES_PORT: '5432'
@@ -124,9 +124,10 @@ services:
     build:
       context: apps/nuq-postgres
     image: lobby-firecrawl-nuq:v2.11.0
+    command: [postgres, -c, max_wal_size=1GB, -c, min_wal_size=128MB]
     environment:
       POSTGRES_USER: firecrawl
-      POSTGRES_DB: firecrawl
+      POSTGRES_DB: postgres
       POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD:?required}
     volumes:
     - postgres-data:/var/lib/postgresql/data
@@ -136,7 +137,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - pg_isready -U firecrawl -d firecrawl
+      - pg_isready -U firecrawl -d postgres && test "$$(psql -U firecrawl -d postgres -tAc "SELECT to_regclass('nuq.queue_scrape') IS NOT NULL")" = t
       interval: 10s
       timeout: 3s
       retries: 10
