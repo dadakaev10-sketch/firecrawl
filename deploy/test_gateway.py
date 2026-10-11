@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('gateway', Path(__file__).with_name('gateway.py'))
+assert spec is not None and spec.loader is not None
 gateway = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gateway)
 

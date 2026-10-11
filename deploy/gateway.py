@@ -40,7 +40,7 @@ def crawl_body(data):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *_):
+    def log_message(self, format, *args):
         pass
 
     def reply(self, status, data):
@@ -48,6 +48,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
+        self.send_header('Link', '<https://github.com/dadakaev10-sketch/firecrawl/tree/private-lobbystack>; rel="source"')
         self.end_headers()
         self.wfile.write(body)
 
